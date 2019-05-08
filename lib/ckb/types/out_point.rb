@@ -14,15 +14,17 @@ module CKB
 
       def to_h
         {
-          tx_hash: @tx_hash,
-          index: @index
+          cell: {
+            tx_hash: @tx_hash,
+            index: @index
+          }
         }
       end
 
       def self.from_h(hash)
         new(
-          tx_hash: hash[:tx_hash],
-          index: hash[:index]
+          tx_hash: (hash[:cell] || {})[:tx_hash],
+          index: (hash[:cell] || {})[:index]
         )
       end
     end
