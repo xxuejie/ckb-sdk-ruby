@@ -1,0 +1,46 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require "ckb"
+
+if ARGV.length != 2
+  puts "address_calculator <lina spec file> <address>"
+  exit 1
+end
+
+require "toml-rb"
+
+content = TomlRB.load_file(ARGV[0])
+address = ARGV[1]
+parsed_address = CKB::AddressParser.new(address).parse
+
+no_lock_period_cells = content["genesis"]["issued_cells"].select do |c|
+  c["lock"]["code_hash"] == "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8"
+end
+lock_period_cells = content["genesis"]["issued_cells"].select do |c|
+  c["lock"]["code_hash"] == "0x5c5069eb0857efc65e1bca0c07df34c31663b3622fd3876c876320fc9634e2a8"
+end
+
+if no_lock_period_cells.any? { |c| c["lock"]["args"] == parsed_address.script.args }
+  "Requested address has no lock period!"
+  puts address
+  exit 0
+end
+
+conf = CKB::MultiSignConfiguration.new(require_n: 0, threshold: 1, pubkey_hashes: [parsed_address.script.args], since: 0)
+found_cell = lock_period_cells.find { |c| c["lock"]["args"].start_with?(conf.blake160) }
+if found_cell
+  since = CKB::Utils.hex_to_bin(found_cell["lock"]["args"])[20..-1].unpack("Q<")[0]
+  lock_conf = CKB::MultiSignConfiguration.new(require_n: 0, threshold: 1, pubkey_hashes: [parsed_address.script.args], since: since)
+  lock_script = CKB::Types::Script.new(
+    code_hash: "0x5c5069eb0857efc65e1bca0c07df34c31663b3622fd3876c876320fc9634e2a8",
+    hash_type: "type",
+    args: lock_conf.lock_args
+  )
+  lock_address = CKB::Address.new(lock_script, mode: CKB::MODE::MAINNET).generate
+  puts "Requested address has lock period, make sure you are using the correct lina.toml spec file, otherwise the address is not valid!"
+  puts lock_address
+  exit 0
+end
+
+puts "Address could not be found!"

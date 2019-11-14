@@ -4,35 +4,36 @@ module CKB
   class MultiSignConfiguration
     attr_reader :require_n
     attr_reader :threshold
-    attr_reader :pubkeys
+    attr_reader :pubkey_hashes
     attr_reader :since
 
-    def initialize(require_n:, threshold:, pubkeys:, since:)
+    def initialize(require_n:, threshold:, pubkey_hashes:, since:)
       raise "require_n should be less than 256" if require_n > 255 || require_n < 0
       raise "threshold should be less than 256" if threshold > 255 || threshold < 0
-      raise "Pubkey number must be less than 256" if pubkeys.length > 255
+      raise "Pubkey number must be less than 256" if pubkey_hashes.length > 255
 
       @require_n = require_n
       @threshold = threshold
-      @pubkeys = pubkeys
+      @pubkey_hashes = pubkey_hashes
       @since = since
     end
 
     def self.from_private_keys(require_n:, threshold:, private_keys:, since:)
-      pubkeys = private_keys.map do |privkey|
-        CKB::Key.new(privkey).pubkey
+      pubkey_hashes = private_keys.map do |privkey|
+        pubkey = CKB::Key.new(privkey).pubkey
+        CKB::Blake2b.digest(CKB::Utils.hex_to_bin(pubkey))[0..19]
       end
       self.new(require_n: require_n,
                threshold: threshold,
-               pubkeys: pubkeys,
+               pubkey_hashes: pubkey_hashes,
                since: since)
     end
 
     def serialize
       CKB::Utils.bin_to_hex(
-        [0, require_n, threshold, pubkeys.length].pack("CCCC") +
-        pubkeys.map do |pubkey|
-          CKB::Blake2b.digest(CKB::Utils.hex_to_bin(pubkey))[0..19]
+        [0, require_n, threshold, pubkey_hashes.length].pack("CCCC") +
+        pubkey_hashes.map do |pubkey_hash|
+          CKB::Utils.hex_to_bin(pubkey_hash)
         end.reduce(&:+)
       )
     end
