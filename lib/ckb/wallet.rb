@@ -67,7 +67,6 @@ module CKB
     # @param key [CKB::Key | String] Key or private key hex string
     # @param fee [Integer] transaction fee, in shannon
     def generate_tx(target_address, capacity, data = "0x", key: nil, fee: 0, use_dep_group: true)
-      key = get_key(key)
       parsed_address = AddressParser.new(target_address).parse
       raise "Right now only supports sending to default single signed lock!" if parsed_address.address_type == "SHORTMULTISIG"
 
@@ -116,7 +115,11 @@ module CKB
         tx.cell_deps << Types::CellDep.new(out_point: api.secp_data_out_point, dep_type: "code")
       end
 
-      tx.sign(key)
+      if key
+        tx.sign(key)
+      else
+        tx.interactive_sign
+      end
     end
 
     # @param target_address [String]
