@@ -137,12 +137,12 @@ module CKB
     # @param fee [Integer]
     #
     # @return [CKB::Type::OutPoint]
-    def deposit_to_dao(capacity, key: nil, fee: 0)
-      key = get_key(key)
+    def generate_deposit_to_dao(capacity, key: nil, fee: 0, lock: nil)
+      lock = lock || Types::Script.generate_lock(blake160, code_hash, hash_type)
 
       output = Types::Output.new(
         capacity: capacity,
-        lock: Types::Script.generate_lock(blake160, code_hash, hash_type),
+        lock: lock,
         type: Types::Script.new(
           code_hash: api.dao_type_hash,
           args: "0x",
@@ -186,9 +186,11 @@ module CKB
       )
 
       tx_hash = tx.compute_hash
-      send_transaction(tx.sign(key))
-
-      Types::OutPoint.new(tx_hash: tx_hash, index: 0)
+      if key
+        tx.sign(key)
+      else
+        tx.interactive_sign
+      end
     end
 
     def start_withdrawing_from_dao(out_point, key: nil, fee: 0)
